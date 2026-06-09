@@ -1,0 +1,100 @@
+{
+  "uid": "numa-overview",
+  "title": "Numa — Overview & Per-Client",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "30s",
+  "timezone": "browser",
+  "templating": { "list": [] },
+  "annotations": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Cache hit rate",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "numa-prom" },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "yellow", "value": 50 }, { "color": "green", "value": 75 } ] } }, "overrides": [] },
+      "targets": [ { "refId": "A", "datasource": { "type": "prometheus", "uid": "numa-prom" }, "expr": "100 * sum(rate(numa_queries_by_path_total{path=\"cached\"}[5m])) / clamp_min(sum(rate(numa_queries_by_path_total{path=~\"cached|upstream|local|forwarded|recursive\"}[5m])), 1)" } ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Block rate",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "numa-prom" },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 25 } ] } }, "overrides": [] },
+      "targets": [ { "refId": "A", "datasource": { "type": "prometheus", "uid": "numa-prom" }, "expr": "100 * sum(rate(numa_queries_by_path_total{path=\"blocked\"}[5m])) / clamp_min(sum(rate(numa_queries_by_path_total[5m])), 1)" } ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Resolver",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "numa-prom" },
+      "fieldConfig": { "defaults": { "mappings": [ { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } } ], "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] } }, "overrides": [] },
+      "targets": [ { "refId": "A", "datasource": { "type": "prometheus", "uid": "numa-prom" }, "expr": "numa_up" } ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Cache entries",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "numa-prom" },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "fixed", "fixedColor": "blue" } }, "overrides": [] },
+      "targets": [ { "refId": "A", "datasource": { "type": "prometheus", "uid": "numa-prom" }, "expr": "numa_cache_entries" } ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Queries/sec by path",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "numa-prom" },
+      "fieldConfig": { "defaults": { "unit": "qps", "custom": { "drawStyle": "line", "fillOpacity": 20, "stacking": { "mode": "normal" } } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] } },
+      "targets": [ { "refId": "A", "datasource": { "type": "prometheus", "uid": "numa-prom" }, "expr": "sum by (path) (rate(numa_queries_by_path_total[5m]))", "legendFormat": "{{path}}" } ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "numa memory by area",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "numa-prom" },
+      "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [ { "refId": "A", "datasource": { "type": "prometheus", "uid": "numa-prom" }, "expr": "numa_memory_bytes", "legendFormat": "{{kind}}" } ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Top clients — queries/sec",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "numa-prom" },
+      "fieldConfig": { "defaults": { "unit": "qps", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] } },
+      "targets": [ { "refId": "A", "datasource": { "type": "prometheus", "uid": "numa-prom" }, "expr": "topk(10, sum by (client) (rate(numa_client_queries_total[5m])))", "legendFormat": "{{client}}" } ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Blocked/sec by client",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "numa-prom" },
+      "fieldConfig": { "defaults": { "unit": "qps", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] } },
+      "targets": [ { "refId": "A", "datasource": { "type": "prometheus", "uid": "numa-prom" }, "expr": "sum by (client) (rate(numa_client_queries_total{path=\"BLOCKED\"}[5m]))", "legendFormat": "{{client}}" } ]
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "Clients",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "numa-prom" },
+      "options": { "showHeader": true },
+      "targets": [ { "refId": "A", "datasource": { "type": "prometheus", "uid": "numa-prom" }, "expr": "numa_client_info", "instant": true, "format": "table" } ],
+      "transformations": [ { "id": "organize", "options": { "excludeByName": { "Time": true, "Value": true, "__name__": true, "instance": true, "job": true }, "renameByName": { "client": "Client IP", "name": "Device", "vendor": "Vendor" } } } ]
+    }
+  ]
+}

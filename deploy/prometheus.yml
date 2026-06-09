@@ -1,0 +1,10 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: numa-metrics
+    # The agent runs on the Pi; reach it via the SSH tunnel forwarded to the
+    # host's :9353. On Docker Desktop host.docker.internal resolves to the host;
+    # on Linux the extra_hosts entry in docker-compose.yml provides it.
+    static_configs:
+      - targets: ['host.docker.internal:9353']

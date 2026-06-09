@@ -1,0 +1,40 @@
+[Unit]
+Description=numa-metrics: per-client DNS metadata agent (RAM-only)
+After=network-online.target numa.service
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/numa-metrics
+Environment=NUMA_URL=http://127.0.0.1:5380
+Environment=LISTEN=127.0.0.1:9353
+
+# Blast-radius containment — the agent must never wedge the box (swap-of-death).
+# A runaway ring is killed cleanly here, leaving numa and the net stack untouched.
+MemoryHigh=24M
+MemoryMax=32M
+Restart=always
+RestartSec=2
+OOMPolicy=stop
+
+# Sandbox. DynamicUser gives a transient unprivileged user and implies a strict
+# read-only filesystem; the agent writes nothing to the SD card.
+DynamicUser=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+# No ReadWritePaths: state is in-process RAM only. /proc/net/arp + avahi (AF_UNIX)
+# stay reachable for enrichment.
+
+[Install]
+WantedBy=multi-user.target
