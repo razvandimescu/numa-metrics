@@ -11,7 +11,9 @@ import (
 	"github.com/razvandimescu/numa-metrics/internal/state"
 )
 
-func New(st *state.State) http.Handler {
+// New builds the loopback router. session identifies this agent process so a
+// draining consumer can detect a restart (seq resets to 0) and rewind safely.
+func New(st *state.State, session string) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
@@ -27,6 +29,7 @@ func New(st *state.State) http.Handler {
 				max = n
 			}
 		}
+		w.Header().Set("X-Numa-Metrics-Session", session)
 		w.Header().Set("Content-Type", "application/x-ndjson")
 		enc := json.NewEncoder(w)
 		for _, row := range st.RowsAfter(after, max) {
@@ -37,7 +40,7 @@ func New(st *state.State) http.Handler {
 	})
 
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, "ok")
+		fmt.Fprintf(w, "ok session=%s\n", session)
 	})
 
 	return mux

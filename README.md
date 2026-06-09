@@ -17,9 +17,13 @@ pi-dns (this agent, RAM-only)            laptop (durable tier)         relay
   └ in-RAM drain ring (NDJSON cursor)  ◀──── + drain /drain over the tunnel
 ```
 
+The **agent** (what runs on the Pi) is stdlib-only and dependency-free. The
+optional **drain-consumer** (laptop-side) uses pure-Go `modernc.org/sqlite` — it
+is never linked into the Pi binary.
+
 ## Why it's shaped this way
 
-- **No numa code changes.** numa's `/query-log` is the only data source.
+- **No numa code changes.** numa's `/query-log` + `/stats` are the only sources.
 - **No SD writes.** All state is in-process RAM; the systemd unit grants no
   writable paths. A reboot/power-loss drops the undrained buffer — acceptable for
   metadata, and the laptop holds the durable archive.
@@ -85,19 +89,39 @@ numa_memory_bytes{kind}                        gauge
 Cache-hit-rate (the ratio #285's user computed by hand) is then just PromQL:
 `100 * rate(numa_queries_by_path_total{path="cached"}[5m]) / rate(numa_queries_by_path_total{path=~"cached|upstream|local"}[5m])`.
 
+## Per-domain history (SQLite, from `/drain`)
+
+Per-*domain*, per-client detail is **deliberately not** in Prometheus (domain as a
+label = cardinality blow-up). Instead the **drain-consumer** pulls `/drain`
+incrementally into SQLite — the durable, high-cardinality store you run
+ad-hoc SQL and Grafana tables over. It resumes after sleep via a persisted cursor
+and survives agent restarts via the `X-Numa-Metrics-Session` header (seq rewind).
+
+```sql
+-- top domains for a device
+SELECT domain, count(*) q FROM queries WHERE client='192.168.1.21' GROUP BY domain ORDER BY q DESC;
+-- what got blocked, per device
+SELECT client, domain, count(*) FROM queries WHERE path='BLOCKED' GROUP BY client, domain;
+```
+
 ## Visualize: Grafana stack (`deploy/`)
 
-A ready Prometheus + Grafana compose stack lives in `deploy/`. Run it on the
-laptop; it scrapes the agent over the SSH tunnel and ships a provisioned
-dashboard (overview + per-client panels).
+`deploy/` is a self-contained compose stack: **drain-consumer** (→ SQLite),
+**Prometheus** (scrapes `/metrics`), and **Grafana** with both datasources
+auto-provisioned plus two dashboards.
 
 ```bash
 ssh -N -L 9353:127.0.0.1:9353 pi-dns-remote &   # tunnel the agent to the host
-cd deploy && docker compose up -d                # Grafana → http://localhost:3000
+cd deploy && docker compose up -d --build        # Grafana → http://localhost:3000
 ```
 
-Grafana auto-loads the Prometheus datasource and the **Numa — Overview & Per-Client**
-dashboard. Edit `deploy/prometheus.yml` if the agent isn't on `:9353`.
+- **Numa — Overview & Per-Client** (Prometheus): cache-hit %, block %, queries/sec
+  by path, top clients, memory.
+- **Numa — Per-Client Domains** (SQLite): `$client` selector → top domains, top
+  blocked domains, queries/min.
+
+The consumer reaches the agent at `host.docker.internal:9353`; edit
+`deploy/prometheus.yml` / the `AGENT_URL` env if it's elsewhere.
 
 ## Consuming it from the laptop (over the tunnel)
 
@@ -126,6 +150,18 @@ curl -s "http://127.0.0.1:9353/drain?after=${CURSOR}" | sqlite-import ...
 | `-avahi` | `AVAHI` | `true` | use `avahi-resolve` for names |
 | `-stats` | `STATS` | `true` | export resolver-wide gauges from `/stats` |
 | `-stats-interval` | `STATS_INTERVAL` | `15s` | `/stats` poll interval |
+| `-hosts-file` | `HOSTS_FILE` | _(none)_ | static `IP name` map for device names (works off-LAN, e.g. when the agent runs on the laptop pointing at a remote numa) |
+
+## Two deployment models
+
+- **Agent on the Pi (recommended for a real deployment):** enrichment (avahi/ARP)
+  works, and the Pi's in-RAM ring keeps filling while the laptop sleeps — drain on
+  wake, no gaps. Needs a one-time `scp` + systemd install.
+- **Agent on the laptop, pointed at a remote numa over the tunnel (quick/easy):**
+  set `-numa-url` to the tunneled numa API. Per-client *IPs* still come through;
+  for device *names* use `-hosts-file` (avahi/ARP can't see the remote LAN). Caveat:
+  if the laptop sleeps, numa's 1000-entry log ring rolls over and you lose that
+  window — there's no Pi-side buffer in this model.
 
 ## Notes & limits
 

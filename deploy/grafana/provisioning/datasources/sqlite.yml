@@ -1,0 +1,7 @@
+apiVersion: 1
+datasources:
+  - name: SQLite
+    type: frser-sqlite-datasource
+    uid: numa-sqlite
+    jsonData:
+      path: /data/numa_metrics.db

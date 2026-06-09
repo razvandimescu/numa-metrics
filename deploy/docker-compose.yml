@@ -1,9 +1,27 @@
-# Laptop-side visualization stack. Prometheus scrapes the numa-metrics agent
-# (reached over the SSH tunnel, forwarded to the host's :9353); Grafana reads
-# Prometheus. Start the tunnel first:
-#   ssh -N -L 9353:127.0.0.1:9353 pi-dns-remote
+# Laptop-side stack:
+#   - drain-consumer  pulls /drain -> SQLite (per-domain, per-client history)
+#   - prometheus      scrapes /metrics (counters + global gauges)
+#   - grafana         dashboards over both (Prometheus + SQLite datasources)
+# The numa-metrics agent runs on the host (or Pi) and is reached at :9353 —
+# start the tunnel first:  ssh -N -L 9353:127.0.0.1:9353 pi-dns-remote
 # then: docker compose up -d   ->   Grafana at http://localhost:3000
 services:
+  drain-consumer:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.consumer
+    container_name: numa-drain-consumer
+    environment:
+      - AGENT_URL=http://host.docker.internal:9353
+      - DB=/data/numa_metrics.db
+      - INTERVAL=30s
+      - RETENTION_DAYS=30
+    volumes:
+      - sqlite-data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
   prometheus:
     image: prom/prometheus:latest
     container_name: numa-prometheus
@@ -14,7 +32,7 @@ services:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prom-data:/prometheus
     extra_hosts:
-      - "host.docker.internal:host-gateway" # so the container can reach the tunnel on the host
+      - "host.docker.internal:host-gateway"
     ports:
       - "9090:9090"
     restart: unless-stopped
@@ -22,16 +40,18 @@ services:
   grafana:
     image: grafana/grafana:latest
     container_name: numa-grafana
-    depends_on: [prometheus]
-    volumes:
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
-      - grafana-data:/var/lib/grafana
+    depends_on: [prometheus, drain-consumer]
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_INSTALL_PLUGINS=frser-sqlite-datasource
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+      - sqlite-data:/data # SQLite plugin reads /data/numa_metrics.db (rw: WAL index)
     ports:
       - "3000:3000"
     restart: unless-stopped
@@ -39,3 +59,4 @@ services:
 volumes:
   prom-data:
   grafana-data:
+  sqlite-data:

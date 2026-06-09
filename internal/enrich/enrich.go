@@ -22,12 +22,40 @@ type cached struct {
 type Enricher struct {
 	ttl      time.Duration
 	useAvahi bool
+	hosts    map[string]string // static IP -> name overrides (LAN-independent)
 	mu       sync.Mutex
 	cache    map[string]cached
 }
 
-func New(ttl time.Duration, useAvahi bool) *Enricher {
-	return &Enricher{ttl: ttl, useAvahi: useAvahi, cache: make(map[string]cached)}
+func New(ttl time.Duration, useAvahi bool, hosts map[string]string) *Enricher {
+	if hosts == nil {
+		hosts = map[string]string{}
+	}
+	return &Enricher{ttl: ttl, useAvahi: useAvahi, hosts: hosts, cache: make(map[string]cached)}
+}
+
+// LoadHosts parses an "IP name [vendor]" file (# comments allowed). Lets the
+// agent attach device names without on-LAN avahi/ARP — e.g. when it runs on the
+// laptop pointing at a remote numa over the tunnel.
+func LoadHosts(path string) (map[string]string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	out := map[string]string{}
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) >= 2 {
+			out[fields[0]] = fields[1]
+		}
+	}
+	return out, sc.Err()
 }
 
 func (e *Enricher) Lookup(ip string) (name, vendor string) {
@@ -38,7 +66,9 @@ func (e *Enricher) Lookup(ip string) (name, vendor string) {
 	}
 	e.mu.Unlock()
 
-	if e.useAvahi {
+	if n, ok := e.hosts[ip]; ok {
+		name = n
+	} else if e.useAvahi {
 		name = avahiResolve(ip)
 	}
 	vendor = vendorForMAC(macForIP(ip))

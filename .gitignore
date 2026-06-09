@@ -1,2 +1,6 @@
 /numa-metrics
 /numa-metrics-armv6
+/drain-consumer
+*.db
+*.db-wal
+*.db-shm

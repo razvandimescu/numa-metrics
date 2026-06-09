@@ -31,12 +31,22 @@ func main() {
 	avahi := flag.Bool("avahi", envBool("AVAHI", true), "use avahi-resolve for device names")
 	doStats := flag.Bool("stats", envBool("STATS", true), "export resolver-wide gauges from /stats")
 	statsInterval := flag.Duration("stats-interval", envDur("STATS_INTERVAL", 15*time.Second), "/stats poll interval")
+	hostsFile := flag.String("hosts-file", env("HOSTS_FILE", ""), "static 'IP name' map for device names (works off-LAN)")
 	flag.Parse()
 
 	st := state.New(*ringCap)
 	var en *enrich.Enricher
 	if *doEnrich {
-		en = enrich.New(*enrichTTL, *avahi)
+		var hosts map[string]string
+		if *hostsFile != "" {
+			h, err := enrich.LoadHosts(*hostsFile)
+			if err != nil {
+				log.Fatalf("hosts-file: %v", err)
+			}
+			hosts = h
+			log.Printf("loaded %d static host names from %s", len(hosts), *hostsFile)
+		}
+		en = enrich.New(*enrichTTL, *avahi, hosts)
 	}
 	p := poll.New(*numaURL, *limit, *interval, st, en)
 
@@ -48,7 +58,8 @@ func main() {
 		go poll.NewStats(*numaURL, *statsInterval, st).Run(ctx)
 	}
 
-	srv := &http.Server{Addr: *listen, Handler: serve.New(st)}
+	session := strconv.FormatInt(time.Now().UnixNano(), 36)
+	srv := &http.Server{Addr: *listen, Handler: serve.New(st, session)}
 	go func() {
 		<-ctx.Done()
 		sctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
