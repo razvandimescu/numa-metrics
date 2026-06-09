@@ -1,0 +1,8 @@
+# Static IP -> device-name map for numa-metrics enrichment.
+# Lets the agent attach device names when it runs on the laptop pointing at a
+# remote numa (avahi/ARP can't see the Pi's LAN). Copy to devices.txt and edit.
+# Format: <IP> <name> [vendor]   ('#' comments allowed; extra fields ignored)
+192.168.1.1   router
+192.168.1.13  desktop
+192.168.1.21  kids-pc
+192.168.1.50  pi-dns
