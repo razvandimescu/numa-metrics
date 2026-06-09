@@ -61,12 +61,10 @@ func (s *State) WriteMetrics(w io.Writer) {
 		fmt.Fprintf(w, "numa_client_last_seen_timestamp_seconds{client=%q} %g\n", esc(ip), lastSeen[ip])
 	}
 
-	fmt.Fprintln(w, "# HELP numa_client_info Per-client device metadata (join key for dashboards).")
+	fmt.Fprintln(w, "# HELP numa_client_info Per-client device name (join key for dashboards).")
 	fmt.Fprintln(w, "# TYPE numa_client_info gauge")
 	for _, ip := range sortedInfoKeys(info) {
-		v := info[ip]
-		fmt.Fprintf(w, "numa_client_info{client=%q,name=%q,vendor=%q} 1\n",
-			esc(ip), esc(v.Name), esc(v.Vendor))
+		fmt.Fprintf(w, "numa_client_info{client=%q,name=%q} 1\n", esc(ip), esc(info[ip].Name))
 	}
 
 	fmt.Fprintln(w, "# HELP numa_metrics_poll_overflow_total Polls that returned a full page (possible missed entries).")

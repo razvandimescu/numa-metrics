@@ -8,7 +8,7 @@ import (
 func TestWriteMetricsShape(t *testing.T) {
 	s := New(10)
 	s.Ingest([]Row{
-		{Entry: Entry{TimestampEpoch: 100, Src: "192.168.1.21:5", Domain: "reddit.com", QueryType: "A", Path: "BLOCKED"}, Name: "kid-pc.local", Vendor: "ASUSTek"},
+		{Entry: Entry{TimestampEpoch: 100, Src: "192.168.1.21:5", Domain: "reddit.com", QueryType: "A", Path: "BLOCKED"}, Name: "kid-pc.local"},
 		{Entry: Entry{TimestampEpoch: 101, Src: "192.168.1.21:5", Domain: "good.com", QueryType: "A", Path: "FORWARD"}},
 	}, "fp", 101, false)
 
@@ -19,7 +19,7 @@ func TestWriteMetricsShape(t *testing.T) {
 	for _, want := range []string{
 		`numa_client_queries_total{client="192.168.1.21",path="BLOCKED"} 1`,
 		`numa_client_queries_total{client="192.168.1.21",path="FORWARD"} 1`,
-		`numa_client_info{client="192.168.1.21",name="kid-pc.local",vendor="ASUSTek"} 1`,
+		`numa_client_info{client="192.168.1.21",name="kid-pc.local"} 1`,
 		"# TYPE numa_client_queries_total counter",
 	} {
 		if !strings.Contains(out, want) {

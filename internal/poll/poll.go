@@ -78,7 +78,7 @@ func (p *Poller) once(ctx context.Context) {
 		r := state.Row{Entry: e}
 		if p.enricher != nil {
 			if ip := hostOnly(e.Src); ip != "" {
-				r.Name, r.Vendor = p.enricher.Lookup(ip)
+				r.Name = p.enricher.Lookup(ip)
 			}
 		}
 		rows = append(rows, r)

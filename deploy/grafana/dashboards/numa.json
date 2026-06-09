@@ -94,7 +94,7 @@
       "datasource": { "type": "prometheus", "uid": "numa-prom" },
       "options": { "showHeader": true },
       "targets": [ { "refId": "A", "datasource": { "type": "prometheus", "uid": "numa-prom" }, "expr": "numa_client_info", "instant": true, "format": "table" } ],
-      "transformations": [ { "id": "organize", "options": { "excludeByName": { "Time": true, "Value": true, "__name__": true, "instance": true, "job": true }, "renameByName": { "client": "Client IP", "name": "Device", "vendor": "Vendor" } } } ]
+      "transformations": [ { "id": "organize", "options": { "excludeByName": { "Time": true, "Value": true, "__name__": true, "instance": true, "job": true }, "renameByName": { "client": "Client IP", "name": "Device" } } } ]
     }
   ]
 }

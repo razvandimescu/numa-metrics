@@ -26,14 +26,12 @@ type Entry struct {
 type Row struct {
 	Seq uint64 `json:"seq"`
 	Entry
-	Name   string `json:"name,omitempty"`
-	Vendor string `json:"vendor,omitempty"`
+	Name string `json:"name,omitempty"`
 }
 
 // Info is the per-client device metadata surfaced as a Prometheus _info metric.
 type Info struct {
-	Name   string
-	Vendor string
+	Name string
 }
 
 type ckey struct {
@@ -103,8 +101,8 @@ func (s *State) Ingest(rows []Row, newestFp string, newestEpoch float64, hitLimi
 		if r.TimestampEpoch > s.lastSeen[ip] {
 			s.lastSeen[ip] = r.TimestampEpoch
 		}
-		if r.Name != "" || r.Vendor != "" {
-			s.info[ip] = Info{Name: r.Name, Vendor: r.Vendor}
+		if r.Name != "" {
+			s.info[ip] = Info{Name: r.Name}
 		}
 	}
 	if len(rows) > 0 {

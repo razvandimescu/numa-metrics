@@ -26,7 +26,7 @@ func main() {
 	interval := flag.Duration("interval", envDur("INTERVAL", 10*time.Second), "poll interval")
 	limit := flag.Int("limit", envInt("LIMIT", 1000), "query-log entries fetched per poll")
 	ringCap := flag.Int("ring", envInt("RING", 20000), "in-RAM drain ring capacity (rows)")
-	doEnrich := flag.Bool("enrich", envBool("ENRICH", true), "resolve client IP -> device name/vendor")
+	doEnrich := flag.Bool("enrich", envBool("ENRICH", true), "resolve client IP -> device name")
 	enrichTTL := flag.Duration("enrich-ttl", envDur("ENRICH_TTL", 10*time.Minute), "enrichment cache TTL")
 	avahi := flag.Bool("avahi", envBool("AVAHI", true), "use avahi-resolve for device names")
 	doStats := flag.Bool("stats", envBool("STATS", true), "export resolver-wide gauges from /stats")

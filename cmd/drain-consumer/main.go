@@ -35,7 +35,6 @@ type row struct {
 	Rescode        string  `json:"rescode"`
 	LatencyMs      float64 `json:"latency_ms"`
 	Name           string  `json:"name"`
-	Vendor         string  `json:"vendor"`
 }
 
 const schema = `
@@ -46,7 +45,6 @@ CREATE TABLE IF NOT EXISTS queries (
   ts        REAL NOT NULL,
   client    TEXT NOT NULL,
   name      TEXT,
-  vendor    TEXT,
   domain    TEXT NOT NULL,
   qtype     TEXT,
   path      TEXT,
@@ -173,8 +171,8 @@ func (c *consumer) insert(ctx context.Context, rows []row) error {
 		return err
 	}
 	stmt, err := tx.PrepareContext(ctx, `INSERT OR IGNORE INTO queries
-		(session, seq, ts, client, name, vendor, domain, qtype, path, transport, rescode, latency_ms)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
+		(session, seq, ts, client, name, domain, qtype, path, transport, rescode, latency_ms)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -184,7 +182,7 @@ func (c *consumer) insert(ctx context.Context, rows []row) error {
 	maxSeq := c.cursor
 	for _, r := range rows {
 		if _, err := stmt.ExecContext(ctx, c.session, r.Seq, r.TimestampEpoch, hostOnly(r.Src),
-			r.Name, r.Vendor, r.Domain, r.QueryType, r.Path, r.Transport, r.Rescode, r.LatencyMs); err != nil {
+			r.Name, r.Domain, r.QueryType, r.Path, r.Transport, r.Rescode, r.LatencyMs); err != nil {
 			tx.Rollback()
 			return err
 		}

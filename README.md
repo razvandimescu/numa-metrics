@@ -12,7 +12,7 @@ them on loopback for a remote collector to **scrape** (`/metrics`) and **drain**
 ```
 pi-dns (this agent, RAM-only)            laptop (durable tier)         relay
   ├ poll /query-log every 10s              ├ Prometheus/VictoriaMetrics  └ transit only
-  ├ enrich IP -> device (avahi / ARP-OUI)  ├ SQLite (domain history)        (reverse SSH;
+  ├ enrich IP -> device (hosts-file / avahi)  ├ SQLite (domain history)        (reverse SSH;
   ├ /metrics  (client × path counters)     └ when awake: scrape /metrics      stores nothing)
   └ in-RAM drain ring (NDJSON cursor)  ◀──── + drain /drain over the tunnel
 ```
@@ -27,8 +27,8 @@ is never linked into the Pi binary.
 - **No SD writes.** All state is in-process RAM; the systemd unit grants no
   writable paths. A reboot/power-loss drops the undrained buffer — acceptable for
   metadata, and the laptop holds the durable archive.
-- **Memory-capped** (`MemoryMax=32M`, `OOMPolicy=stop`) so it can never trigger
-  the SD-swap "swap-of-death" — a runaway is killed cleanly, numa untouched.
+- **Memory-capped** (`MemoryMax` + `OOMPolicy=stop` in the unit) so it can never
+  trigger the SD-swap "swap-of-death" — a runaway is killed cleanly, numa untouched.
 - **Cardinality discipline.** Metrics are labeled `client` + `path` only; domains
   are *never* metric labels (that would explode cardinality). Per-domain detail
   lives in the raw rows you drain into SQLite on the laptop.
@@ -58,7 +58,7 @@ sudo systemctl daemon-reload && sudo systemctl enable --now numa-metrics
 
 `devices.txt` (router-lease names) is optional — the unit's `HOSTS_FILE` points at
 `/etc/numa-metrics/devices.txt` but a missing file is non-fatal. On the Pi,
-avahi + ARP also enrich automatically (names + vendor).
+avahi also resolves mDNS names automatically.
 
 ## Endpoints (loopback only)
 
@@ -75,7 +75,7 @@ avahi + ARP also enrich automatically (names + vendor).
 ```
 numa_client_queries_total{client,path}        counter
 numa_client_last_seen_timestamp_seconds{client} gauge
-numa_client_info{client,name,vendor}           gauge (=1; join key for dashboards)
+numa_client_info{client,name}                  gauge (=1; join key for dashboards)
 ```
 
 **Resolver-wide** (from `/stats`, disable with `-stats=false`):
@@ -151,7 +151,7 @@ curl -s "http://127.0.0.1:9353/drain?after=${CURSOR}" | sqlite-import ...
 | `-interval` | `INTERVAL` | `10s` | poll interval |
 | `-limit` | `LIMIT` | `1000` | entries fetched per poll |
 | `-ring` | `RING` | `20000` | in-RAM drain ring size (rows) |
-| `-enrich` | `ENRICH` | `true` | IP → device name/vendor |
+| `-enrich` | `ENRICH` | `true` | IP → device name |
 | `-enrich-ttl` | `ENRICH_TTL` | `10m` | enrichment cache TTL |
 | `-avahi` | `AVAHI` | `true` | use `avahi-resolve` for names |
 | `-stats` | `STATS` | `true` | export resolver-wide gauges from `/stats` |
@@ -160,12 +160,12 @@ curl -s "http://127.0.0.1:9353/drain?after=${CURSOR}" | sqlite-import ...
 
 ## Two deployment models
 
-- **Agent on the Pi (recommended for a real deployment):** enrichment (avahi/ARP)
+- **Agent on the Pi (recommended for a real deployment):** enrichment (avahi + hosts-file)
   works, and the Pi's in-RAM ring keeps filling while the laptop sleeps — drain on
   wake, no gaps. Needs a one-time `scp` + systemd install.
 - **Agent on the laptop, pointed at a remote numa over the tunnel (quick/easy):**
   set `-numa-url` to the tunneled numa API. Per-client *IPs* still come through;
-  for device *names* use `-hosts-file` (avahi/ARP can't see the remote LAN). Caveat:
+  for device *names* use `-hosts-file` (avahi can't see the remote LAN). Caveat:
   if the laptop sleeps, numa's 1000-entry log ring rolls over and you lose that
   window — there's no Pi-side buffer in this model.
 
