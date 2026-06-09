@@ -15,7 +15,7 @@
         "label": "Client",
         "type": "query",
         "datasource": { "type": "frser-sqlite-datasource", "uid": "numa-sqlite" },
-        "query": "SELECT DISTINCT client FROM queries ORDER BY client",
+        "query": "SELECT client AS __value, coalesce(NULLIF(MAX(name),''), client) AS __text FROM queries GROUP BY client ORDER BY __text",
         "refresh": 2,
         "sort": 1,
         "includeAll": false,
@@ -54,7 +54,7 @@
     {
       "id": 4,
       "type": "timeseries",
-      "title": "Queries/min — $client",
+      "title": "Queries/min — ${client:text}",
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 4 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "numa-sqlite" },
       "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "bars", "fillOpacity": 40 } }, "overrides": [] },
@@ -64,7 +64,7 @@
     {
       "id": 5,
       "type": "table",
-      "title": "Top domains — $client",
+      "title": "Top domains — ${client:text}",
       "gridPos": { "h": 11, "w": 12, "x": 0, "y": 12 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "numa-sqlite" },
       "options": { "showHeader": true },
@@ -73,7 +73,7 @@
     {
       "id": 6,
       "type": "table",
-      "title": "Top blocked domains — $client",
+      "title": "Top blocked domains — ${client:text}",
       "gridPos": { "h": 11, "w": 12, "x": 12, "y": 12 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "numa-sqlite" },
       "options": { "showHeader": true },
