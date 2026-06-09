@@ -39,12 +39,12 @@ func main() {
 	if *doEnrich {
 		var hosts map[string]string
 		if *hostsFile != "" {
-			h, err := enrich.LoadHosts(*hostsFile)
-			if err != nil {
-				log.Fatalf("hosts-file: %v", err)
+			if h, err := enrich.LoadHosts(*hostsFile); err != nil {
+				log.Printf("hosts-file: %v (continuing without static names)", err)
+			} else {
+				hosts = h
+				log.Printf("loaded %d static host names from %s", len(hosts), *hostsFile)
 			}
-			hosts = h
-			log.Printf("loaded %d static host names from %s", len(hosts), *hostsFile)
 		}
 		en = enrich.New(*enrichTTL, *avahi, hosts)
 	}

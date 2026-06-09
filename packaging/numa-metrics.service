@@ -7,11 +7,14 @@ Wants=network-online.target
 ExecStart=/usr/local/bin/numa-metrics
 Environment=NUMA_URL=http://127.0.0.1:5380
 Environment=LISTEN=127.0.0.1:9353
+# Optional: router DHCP-lease names. Missing file is non-fatal (warns, continues).
+Environment=HOSTS_FILE=/etc/numa-metrics/devices.txt
 
 # Blast-radius containment — the agent must never wedge the box (swap-of-death).
 # A runaway ring is killed cleanly here, leaving numa and the net stack untouched.
-MemoryHigh=24M
-MemoryMax=32M
+# Go's runtime is heavier than the Rust resolver; tune down after observing RSS.
+MemoryHigh=48M
+MemoryMax=64M
 Restart=always
 RestartSec=2
 OOMPolicy=stop
