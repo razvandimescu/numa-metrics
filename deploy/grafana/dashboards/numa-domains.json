@@ -1,20 +1,28 @@
 {
   "uid": "numa-domains",
-  "title": "Numa — Per-Client Domains",
+  "title": "Numa \u2014 Per-Client Domains",
   "schemaVersion": 39,
   "version": 1,
   "editable": true,
-  "time": { "from": "now-24h", "to": "now" },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
   "refresh": "1m",
   "timezone": "browser",
-  "annotations": { "list": [] },
+  "annotations": {
+    "list": []
+  },
   "templating": {
     "list": [
       {
         "name": "client",
         "label": "Client",
         "type": "query",
-        "datasource": { "type": "frser-sqlite-datasource", "uid": "numa-sqlite" },
+        "datasource": {
+          "type": "frser-sqlite-datasource",
+          "uid": "numa-sqlite"
+        },
         "query": "SELECT client AS __value, coalesce(NULLIF(MAX(name),''), client) AS __text FROM queries GROUP BY client ORDER BY __text",
         "refresh": 2,
         "sort": 1,
@@ -28,56 +36,218 @@
       "id": 1,
       "type": "stat",
       "title": "Distinct domains",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "numa-sqlite" },
-      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "fixed", "fixedColor": "blue" } }, "overrides": [] },
-      "targets": [ { "refId": "A", "datasource": { "type": "frser-sqlite-datasource", "uid": "numa-sqlite" }, "queryType": "table", "queryText": "SELECT count(DISTINCT domain) AS domains FROM queries WHERE client = '${client}'", "rawQueryText": "SELECT count(DISTINCT domain) AS domains FROM queries WHERE client = '${client}'" } ]
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "numa-sqlite"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "numa-sqlite"
+          },
+          "queryType": "table",
+          "queryText": "SELECT count(DISTINCT domain) AS domains FROM queries WHERE client = (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}' LIMIT 1)",
+          "rawQueryText": "SELECT count(DISTINCT domain) AS domains FROM queries WHERE client = (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}' LIMIT 1)"
+        }
+      ]
     },
     {
       "id": 2,
       "type": "stat",
       "title": "Total queries",
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "numa-sqlite" },
-      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "fixed", "fixedColor": "green" } }, "overrides": [] },
-      "targets": [ { "refId": "A", "datasource": { "type": "frser-sqlite-datasource", "uid": "numa-sqlite" }, "queryType": "table", "queryText": "SELECT count(*) AS queries FROM queries WHERE client = '${client}'", "rawQueryText": "SELECT count(*) AS queries FROM queries WHERE client = '${client}'" } ]
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "numa-sqlite"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "numa-sqlite"
+          },
+          "queryType": "table",
+          "queryText": "SELECT count(*) AS queries FROM queries WHERE client = (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}' LIMIT 1)",
+          "rawQueryText": "SELECT count(*) AS queries FROM queries WHERE client = (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}' LIMIT 1)"
+        }
+      ]
     },
     {
       "id": 3,
       "type": "stat",
       "title": "Blocked queries",
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "numa-sqlite" },
-      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "fixed", "fixedColor": "red" } }, "overrides": [] },
-      "targets": [ { "refId": "A", "datasource": { "type": "frser-sqlite-datasource", "uid": "numa-sqlite" }, "queryType": "table", "queryText": "SELECT count(*) AS blocked FROM queries WHERE client = '${client}' AND path = 'BLOCKED'", "rawQueryText": "SELECT count(*) AS blocked FROM queries WHERE client = '${client}' AND path = 'BLOCKED'" } ]
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "numa-sqlite"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "red"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "numa-sqlite"
+          },
+          "queryType": "table",
+          "queryText": "SELECT count(*) AS blocked FROM queries WHERE client = (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}' LIMIT 1) AND path = 'BLOCKED'",
+          "rawQueryText": "SELECT count(*) AS blocked FROM queries WHERE client = (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}' LIMIT 1) AND path = 'BLOCKED'"
+        }
+      ]
     },
     {
       "id": 4,
       "type": "timeseries",
-      "title": "Queries/min — ${client:text}",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 4 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "numa-sqlite" },
-      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "bars", "fillOpacity": 40 } }, "overrides": [] },
-      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
-      "targets": [ { "refId": "A", "datasource": { "type": "frser-sqlite-datasource", "uid": "numa-sqlite" }, "queryType": "time series", "timeColumns": ["time"], "queryText": "SELECT cast(ts/60 AS INTEGER)*60*1000 AS time, count(*) AS queries FROM queries WHERE client = '${client}' GROUP BY cast(ts/60 AS INTEGER) ORDER BY time", "rawQueryText": "SELECT cast(ts/60 AS INTEGER)*60*1000 AS time, count(*) AS queries FROM queries WHERE client = '${client}' GROUP BY cast(ts/60 AS INTEGER) ORDER BY time" } ]
+      "title": "Queries/min \u2014 ${client:text}",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "numa-sqlite"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 40
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "numa-sqlite"
+          },
+          "queryType": "time series",
+          "timeColumns": [
+            "time"
+          ],
+          "queryText": "SELECT cast(ts/60 AS INTEGER)*60*1000 AS time, count(*) AS queries FROM queries WHERE client = (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}' LIMIT 1) GROUP BY cast(ts/60 AS INTEGER) ORDER BY time",
+          "rawQueryText": "SELECT cast(ts/60 AS INTEGER)*60*1000 AS time, count(*) AS queries FROM queries WHERE client = (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}' LIMIT 1) GROUP BY cast(ts/60 AS INTEGER) ORDER BY time"
+        }
+      ]
     },
     {
       "id": 5,
       "type": "table",
-      "title": "Top domains — ${client:text}",
-      "gridPos": { "h": 11, "w": 12, "x": 0, "y": 12 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "numa-sqlite" },
-      "options": { "showHeader": true },
-      "targets": [ { "refId": "A", "datasource": { "type": "frser-sqlite-datasource", "uid": "numa-sqlite" }, "queryType": "table", "queryText": "SELECT domain, count(*) AS queries, sum(CASE WHEN path='BLOCKED' THEN 1 ELSE 0 END) AS blocked FROM queries WHERE client = '${client}' GROUP BY domain ORDER BY queries DESC LIMIT 100", "rawQueryText": "SELECT domain, count(*) AS queries, sum(CASE WHEN path='BLOCKED' THEN 1 ELSE 0 END) AS blocked FROM queries WHERE client = '${client}' GROUP BY domain ORDER BY queries DESC LIMIT 100" } ]
+      "title": "Top domains \u2014 ${client:text}",
+      "gridPos": {
+        "h": 11,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "numa-sqlite"
+      },
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "numa-sqlite"
+          },
+          "queryType": "table",
+          "queryText": "SELECT domain, count(*) AS queries, sum(CASE WHEN path='BLOCKED' THEN 1 ELSE 0 END) AS blocked FROM queries WHERE client = (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}' LIMIT 1) GROUP BY domain ORDER BY queries DESC LIMIT 100",
+          "rawQueryText": "SELECT domain, count(*) AS queries, sum(CASE WHEN path='BLOCKED' THEN 1 ELSE 0 END) AS blocked FROM queries WHERE client = (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}' LIMIT 1) GROUP BY domain ORDER BY queries DESC LIMIT 100"
+        }
+      ]
     },
     {
       "id": 6,
       "type": "table",
-      "title": "Top blocked domains — ${client:text}",
-      "gridPos": { "h": 11, "w": 12, "x": 12, "y": 12 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "numa-sqlite" },
-      "options": { "showHeader": true },
-      "targets": [ { "refId": "A", "datasource": { "type": "frser-sqlite-datasource", "uid": "numa-sqlite" }, "queryType": "table", "queryText": "SELECT domain, count(*) AS blocked FROM queries WHERE client = '${client}' AND path = 'BLOCKED' GROUP BY domain ORDER BY blocked DESC LIMIT 100", "rawQueryText": "SELECT domain, count(*) AS blocked FROM queries WHERE client = '${client}' AND path = 'BLOCKED' GROUP BY domain ORDER BY blocked DESC LIMIT 100" } ]
+      "title": "Top blocked domains \u2014 ${client:text}",
+      "gridPos": {
+        "h": 11,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "numa-sqlite"
+      },
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "numa-sqlite"
+          },
+          "queryType": "table",
+          "queryText": "SELECT domain, count(*) AS blocked FROM queries WHERE client = (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}' LIMIT 1) AND path = 'BLOCKED' GROUP BY domain ORDER BY blocked DESC LIMIT 100",
+          "rawQueryText": "SELECT domain, count(*) AS blocked FROM queries WHERE client = (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}' LIMIT 1) AND path = 'BLOCKED' GROUP BY domain ORDER BY blocked DESC LIMIT 100"
+        }
+      ]
     }
   ]
 }
