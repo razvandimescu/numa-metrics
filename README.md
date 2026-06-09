@@ -47,12 +47,18 @@ the standard library only.
 ## Install on the Pi
 
 ```bash
-scp numa-metrics-armv6 pi-dns-remote:/tmp/numa-metrics
-ssh pi-dns-remote 'sudo install -m755 /tmp/numa-metrics /usr/local/bin/numa-metrics'
-scp packaging/numa-metrics.service pi-dns-remote:/tmp/
-ssh pi-dns-remote 'sudo install -m644 /tmp/numa-metrics.service /etc/systemd/system/ \
-  && sudo systemctl daemon-reload && sudo systemctl enable --now numa-metrics'
+make pi   # numa-metrics-armv6
+scp numa-metrics-armv6 packaging/numa-metrics.service devices.txt pi-dns-remote:/tmp/
+# then on the Pi (sudo):
+sudo install -m755 /tmp/numa-metrics-armv6 /usr/local/bin/numa-metrics
+sudo install -m644 /tmp/numa-metrics.service /etc/systemd/system/numa-metrics.service
+sudo mkdir -p /etc/numa-metrics && sudo install -m644 /tmp/devices.txt /etc/numa-metrics/devices.txt
+sudo systemctl daemon-reload && sudo systemctl enable --now numa-metrics
 ```
+
+`devices.txt` (router-lease names) is optional — the unit's `HOSTS_FILE` points at
+`/etc/numa-metrics/devices.txt` but a missing file is non-fatal. On the Pi,
+avahi + ARP also enrich automatically (names + vendor).
 
 ## Endpoints (loopback only)
 
