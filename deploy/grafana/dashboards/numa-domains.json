@@ -64,8 +64,8 @@
             "uid": "numa-sqlite"
           },
           "queryType": "table",
-          "queryText": "SELECT count(DISTINCT domain) AS domains FROM queries WHERE client = (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}' LIMIT 1)",
-          "rawQueryText": "SELECT count(DISTINCT domain) AS domains FROM queries WHERE client = (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}' LIMIT 1)"
+          "queryText": "SELECT count(DISTINCT domain) AS domains FROM queries WHERE client IN (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}')",
+          "rawQueryText": "SELECT count(DISTINCT domain) AS domains FROM queries WHERE client IN (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}')"
         }
       ]
     },
@@ -101,8 +101,8 @@
             "uid": "numa-sqlite"
           },
           "queryType": "table",
-          "queryText": "SELECT count(*) AS queries FROM queries WHERE client = (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}' LIMIT 1)",
-          "rawQueryText": "SELECT count(*) AS queries FROM queries WHERE client = (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}' LIMIT 1)"
+          "queryText": "SELECT count(*) AS queries FROM queries WHERE client IN (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}')",
+          "rawQueryText": "SELECT count(*) AS queries FROM queries WHERE client IN (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}')"
         }
       ]
     },
@@ -138,8 +138,8 @@
             "uid": "numa-sqlite"
           },
           "queryType": "table",
-          "queryText": "SELECT count(*) AS blocked FROM queries WHERE client = (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}' LIMIT 1) AND path = 'BLOCKED'",
-          "rawQueryText": "SELECT count(*) AS blocked FROM queries WHERE client = (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}' LIMIT 1) AND path = 'BLOCKED'"
+          "queryText": "SELECT count(*) AS blocked FROM queries WHERE client IN (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}') AND path = 'BLOCKED'",
+          "rawQueryText": "SELECT count(*) AS blocked FROM queries WHERE client IN (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}') AND path = 'BLOCKED'"
         }
       ]
     },
@@ -184,8 +184,8 @@
           "timeColumns": [
             "time"
           ],
-          "queryText": "SELECT cast(ts/60 AS INTEGER)*60*1000 AS time, count(*) AS queries FROM queries WHERE client = (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}' LIMIT 1) GROUP BY cast(ts/60 AS INTEGER) ORDER BY time",
-          "rawQueryText": "SELECT cast(ts/60 AS INTEGER)*60*1000 AS time, count(*) AS queries FROM queries WHERE client = (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}' LIMIT 1) GROUP BY cast(ts/60 AS INTEGER) ORDER BY time"
+          "queryText": "SELECT cast(ts/60 AS INTEGER)*60*1000 AS time, count(*) AS queries FROM queries WHERE client IN (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}') GROUP BY cast(ts/60 AS INTEGER) ORDER BY time",
+          "rawQueryText": "SELECT cast(ts/60 AS INTEGER)*60*1000 AS time, count(*) AS queries FROM queries WHERE client IN (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}') GROUP BY cast(ts/60 AS INTEGER) ORDER BY time"
         }
       ]
     },
@@ -214,8 +214,8 @@
             "uid": "numa-sqlite"
           },
           "queryType": "table",
-          "queryText": "SELECT domain, count(*) AS queries, sum(CASE WHEN path='BLOCKED' THEN 1 ELSE 0 END) AS blocked FROM queries WHERE client = (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}' LIMIT 1) GROUP BY domain ORDER BY queries DESC LIMIT 100",
-          "rawQueryText": "SELECT domain, count(*) AS queries, sum(CASE WHEN path='BLOCKED' THEN 1 ELSE 0 END) AS blocked FROM queries WHERE client = (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}' LIMIT 1) GROUP BY domain ORDER BY queries DESC LIMIT 100"
+          "queryText": "SELECT domain, count(*) AS queries, sum(CASE WHEN path='BLOCKED' THEN 1 ELSE 0 END) AS blocked FROM queries WHERE client IN (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}') GROUP BY domain ORDER BY queries DESC LIMIT 100",
+          "rawQueryText": "SELECT domain, count(*) AS queries, sum(CASE WHEN path='BLOCKED' THEN 1 ELSE 0 END) AS blocked FROM queries WHERE client IN (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}') GROUP BY domain ORDER BY queries DESC LIMIT 100"
         }
       ]
     },
@@ -244,8 +244,8 @@
             "uid": "numa-sqlite"
           },
           "queryType": "table",
-          "queryText": "SELECT domain, count(*) AS blocked FROM queries WHERE client = (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}' LIMIT 1) AND path = 'BLOCKED' GROUP BY domain ORDER BY blocked DESC LIMIT 100",
-          "rawQueryText": "SELECT domain, count(*) AS blocked FROM queries WHERE client = (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}' LIMIT 1) AND path = 'BLOCKED' GROUP BY domain ORDER BY blocked DESC LIMIT 100"
+          "queryText": "SELECT domain, count(*) AS blocked FROM queries WHERE client IN (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}') AND path = 'BLOCKED' GROUP BY domain ORDER BY blocked DESC LIMIT 100",
+          "rawQueryText": "SELECT domain, count(*) AS blocked FROM queries WHERE client IN (SELECT client FROM queries WHERE name = '${client}' OR client = '${client}') AND path = 'BLOCKED' GROUP BY domain ORDER BY blocked DESC LIMIT 100"
         }
       ]
     }
