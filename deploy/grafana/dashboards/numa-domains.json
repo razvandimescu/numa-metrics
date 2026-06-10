@@ -23,7 +23,7 @@
           "type": "frser-sqlite-datasource",
           "uid": "numa-sqlite"
         },
-        "query": "SELECT client AS __value, coalesce(NULLIF(MAX(name),''), client) AS __text FROM queries GROUP BY client ORDER BY __text",
+        "query": "SELECT label FROM (SELECT coalesce(NULLIF(MAX(name),''), client) AS label FROM queries GROUP BY client) GROUP BY label ORDER BY label",
         "refresh": 2,
         "sort": 1,
         "includeAll": false,
