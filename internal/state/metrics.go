@@ -25,7 +25,7 @@ func (s *State) WriteMetrics(w io.Writer) {
 	for k, v := range s.lastSeen {
 		lastSeen[k] = v
 	}
-	info := make(map[string]Info, len(s.info))
+	info := make(map[string]string, len(s.info))
 	for k, v := range s.info {
 		info[k] = v
 	}
@@ -63,8 +63,8 @@ func (s *State) WriteMetrics(w io.Writer) {
 
 	fmt.Fprintln(w, "# HELP numa_client_info Per-client device name (join key for dashboards).")
 	fmt.Fprintln(w, "# TYPE numa_client_info gauge")
-	for _, ip := range sortedInfoKeys(info) {
-		fmt.Fprintf(w, "numa_client_info{client=%q,name=%q} 1\n", esc(ip), esc(info[ip].Name))
+	for _, ip := range sortedKeys(info) {
+		fmt.Fprintf(w, "numa_client_info{client=%q,name=%q} 1\n", esc(ip), esc(info[ip]))
 	}
 
 	fmt.Fprintln(w, "# HELP numa_metrics_poll_gap_total Polls that detected a seq gap (entries rolled off numa's ring before we fetched them).")
@@ -162,20 +162,11 @@ func b2i(b bool) int {
 	return 0
 }
 
-func esc(s string) string {
-	return strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`).Replace(s)
-}
+var metricEscaper = strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`)
 
-func sortedKeys(m map[string]float64) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
-}
+func esc(s string) string { return metricEscaper.Replace(s) }
 
-func sortedInfoKeys(m map[string]Info) []string {
+func sortedKeys[V any](m map[string]V) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
 		out = append(out, k)

@@ -58,6 +58,9 @@ CREATE INDEX IF NOT EXISTS idx_ts ON queries(ts);
 CREATE TABLE IF NOT EXISTS cursor (id INTEGER PRIMARY KEY CHECK (id = 1), session TEXT, seq INTEGER);
 `
 
+const cursorUpsert = `INSERT INTO cursor(id, session, seq) VALUES (1, ?, ?)
+	ON CONFLICT(id) DO UPDATE SET session=excluded.session, seq=excluded.seq`
+
 func main() {
 	agentURL := flag.String("agent-url", env("AGENT_URL", "http://127.0.0.1:9353"), "numa-metrics agent base URL")
 	dbPath := flag.String("db", env("DB", "numa_metrics.db"), "SQLite database path")
@@ -190,10 +193,7 @@ func (c *consumer) insert(ctx context.Context, rows []row) error {
 			maxSeq = r.Seq
 		}
 	}
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO cursor(id, session, seq) VALUES (1, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET session=excluded.session, seq=excluded.seq`,
-		c.session, maxSeq); err != nil {
+	if _, err := tx.ExecContext(ctx, cursorUpsert, c.session, maxSeq); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -216,8 +216,7 @@ func (c *consumer) loadCursor() (session string, seq uint64) {
 }
 
 func (c *consumer) saveCursor() {
-	c.db.Exec(`INSERT INTO cursor(id, session, seq) VALUES (1, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET session=excluded.session, seq=excluded.seq`, c.session, c.cursor)
+	c.db.Exec(cursorUpsert, c.session, c.cursor)
 }
 
 func hostOnly(src string) string {

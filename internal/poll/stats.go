@@ -2,9 +2,6 @@ package poll
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"time"
@@ -45,32 +42,11 @@ func (p *StatsPoller) Run(ctx context.Context) {
 }
 
 func (p *StatsPoller) once(ctx context.Context) {
-	g, err := p.fetch(ctx)
+	g, err := getJSON[state.GlobalStats](ctx, p.client, p.url)
 	if err != nil {
 		log.Printf("stats: %v", err)
 		p.state.MarkGlobalDown()
 		return
 	}
 	p.state.SetGlobal(g)
-}
-
-func (p *StatsPoller) fetch(ctx context.Context) (state.GlobalStats, error) {
-	var g state.GlobalStats
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.url, nil)
-	if err != nil {
-		return g, err
-	}
-	resp, err := p.client.Do(req)
-	if err != nil {
-		return g, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
-		return g, fmt.Errorf("status %d", resp.StatusCode)
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&g); err != nil {
-		return g, err
-	}
-	return g, nil
 }

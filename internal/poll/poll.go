@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"net/http"
 	"time"
 
@@ -104,7 +103,7 @@ func (p *Poller) once(ctx context.Context) {
 		e := entries[i]
 		r := state.Row{Entry: e.Entry}
 		if p.enricher != nil {
-			if ip := hostOnly(e.Src); ip != "" {
+			if ip := state.HostIP(e.Src); ip != "" {
 				r.Name = p.enricher.Lookup(ip)
 			}
 		}
@@ -114,30 +113,27 @@ func (p *Poller) once(ctx context.Context) {
 }
 
 func (p *Poller) fetch(ctx context.Context) ([]logEntry, error) {
-	u := fmt.Sprintf("%s/query-log?limit=%d", p.baseURL, p.limit)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	return getJSON[[]logEntry](ctx, p.client, fmt.Sprintf("%s/query-log?limit=%d", p.baseURL, p.limit))
+}
+
+// getJSON does a context-scoped GET and decodes a single JSON value from the body.
+func getJSON[T any](ctx context.Context, client *http.Client, url string) (T, error) {
+	var out T
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, err
+		return out, err
 	}
-	resp, err := p.client.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("status %d", resp.StatusCode)
+		return out, fmt.Errorf("status %d", resp.StatusCode)
 	}
-	var out []logEntry
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return nil, err
+		return out, err
 	}
 	return out, nil
-}
-
-func hostOnly(src string) string {
-	if h, _, err := net.SplitHostPort(src); err == nil {
-		return h
-	}
-	return src
 }
