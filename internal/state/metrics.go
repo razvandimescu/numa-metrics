@@ -67,7 +67,7 @@ func (s *State) WriteMetrics(w io.Writer) {
 		fmt.Fprintf(w, "numa_client_info{client=%q,name=%q} 1\n", esc(ip), esc(info[ip].Name))
 	}
 
-	fmt.Fprintln(w, "# HELP numa_metrics_poll_overflow_total Polls that returned a full page (possible missed entries).")
+	fmt.Fprintln(w, "# HELP numa_metrics_poll_overflow_total Polls that detected a seq gap (entries rolled off numa's ring before we fetched them).")
 	fmt.Fprintln(w, "# TYPE numa_metrics_poll_overflow_total counter")
 	fmt.Fprintf(w, "numa_metrics_poll_overflow_total %d\n", overflow)
 

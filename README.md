@@ -171,10 +171,14 @@ curl -s "http://127.0.0.1:9353/drain?after=${CURSOR}" | sqlite-import ...
 
 ## Notes & limits
 
-- numa's `/query-log` has **no `since` filter** and returns newest-first, so the
-  agent over-fetches the newest `limit` and dedups against a watermark. If a poll
-  logs `page full … all new`, raise `-limit` or lower `-interval` — the query rate
-  briefly exceeded one page and entries may have rolled off.
+- numa returns `/query-log` newest-first and stamps each entry with a monotonic
+  `seq`, so the agent over-fetches the newest `limit` and keeps only entries with
+  `seq` above its watermark — exact dedup, no fingerprinting. If a burst between
+  polls evicts entries from numa's ring before the agent fetches them, the agent
+  detects the seq gap, logs `gap — missed numa seqs …`, and bumps
+  `numa_metrics_poll_overflow_total`; raise `-limit` or lower `-interval` to avoid
+  it. A numa restart (seq resets) is detected from the backwards jump and the
+  window is re-ingested. (Requires numa with per-entry `seq`, numa#310.)
 - The drain ring is bounded; if the laptop sleeps longer than the ring's depth,
   the oldest undrained rows are evicted (a gap, by design). Size `-ring` for your
   expected offline window.

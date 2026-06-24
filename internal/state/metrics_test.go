@@ -10,7 +10,7 @@ func TestWriteMetricsShape(t *testing.T) {
 	s.Ingest([]Row{
 		{Entry: Entry{TimestampEpoch: 100, Src: "192.168.1.21:5", Domain: "reddit.com", QueryType: "A", Path: "BLOCKED"}, Name: "kid-pc.local"},
 		{Entry: Entry{TimestampEpoch: 101, Src: "192.168.1.21:5", Domain: "good.com", QueryType: "A", Path: "FORWARD"}},
-	}, "fp", 101, false)
+	}, 101, false)
 
 	var sb strings.Builder
 	s.WriteMetrics(&sb)
