@@ -56,7 +56,7 @@ serve.New --> /metrics (Prometheus text) | /drain (NDJSON cursor) | /healthz
   with a monotonic **`seq`**, so the poller over-fetches the newest `limit` and keeps
   entries with `seq > lastSeq` (exact integer dedup), then ingests them chronologically.
   It detects two edge cases from the seq values: a **gap** (oldest fetched `seq > lastSeq+1`
-  → entries rolled off numa's ring; bumps `numa_metrics_poll_overflow_total`) and a
+  → entries rolled off numa's ring; bumps `numa_metrics_poll_gap_total`) and a
   **numa restart** (newest `seq < lastSeq` → seq reset; re-ingest the window). The numa
   `seq` is decoded only here (poll's `logEntry`), never stored in `state.Row` — which has
   its *own* drain `Seq`. (Producer side: numa#310.)

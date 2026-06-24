@@ -111,7 +111,7 @@ func TestSeqGapDetected(t *testing.T) {
 	}
 	var sb strings.Builder
 	st.WriteMetrics(&sb)
-	if !strings.Contains(sb.String(), "numa_metrics_poll_overflow_total 1") {
+	if !strings.Contains(sb.String(), "numa_metrics_poll_gap_total 1") {
 		t.Fatalf("gap not counted:\n%s", sb.String())
 	}
 }

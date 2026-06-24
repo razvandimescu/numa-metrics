@@ -176,7 +176,7 @@ curl -s "http://127.0.0.1:9353/drain?after=${CURSOR}" | sqlite-import ...
   `seq` above its watermark — exact dedup, no fingerprinting. If a burst between
   polls evicts entries from numa's ring before the agent fetches them, the agent
   detects the seq gap, logs `gap — missed numa seqs …`, and bumps
-  `numa_metrics_poll_overflow_total`; raise `-limit` or lower `-interval` to avoid
+  `numa_metrics_poll_gap_total`; raise `-limit` or lower `-interval` to avoid
   it. A numa restart (seq resets) is detected from the backwards jump and the
   window is re-ingested. (Requires numa with per-entry `seq`, numa#310.)
 - The drain ring is bounded; if the laptop sleeps longer than the ring's depth,

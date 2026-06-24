@@ -80,29 +80,28 @@ func (p *Poller) once(ctx context.Context) {
 		lastSeq = 0
 	}
 
-	fresh := make([]logEntry, 0, len(entries)) // newest-first
-	for _, e := range entries {
-		if e.Seq <= lastSeq {
-			break
-		}
-		fresh = append(fresh, e)
+	// Entries are newest-first and contiguous, so the fresh ones are the prefix
+	// with seq > lastSeq; count them, then walk that prefix oldest-first.
+	n := 0
+	for n < len(entries) && entries[n].Seq > lastSeq {
+		n++
 	}
-	if len(fresh) == 0 {
+	if n == 0 {
 		p.state.MarkPoll()
 		return
 	}
 
-	// Gap: the oldest entry still in numa's ring is more than one seq past our
-	// watermark, so entries in between rolled off before we fetched them.
-	oldestFresh := fresh[len(fresh)-1].Seq
+	// Gap: the oldest fresh entry is more than one seq past our watermark, so
+	// entries in between rolled off numa's ring before we fetched them.
+	oldestFresh := entries[n-1].Seq
 	gap := lastSeq > 0 && oldestFresh > lastSeq+1
 	if gap {
 		log.Printf("poll: gap — missed numa seqs %d..%d (raise -limit or lower -interval)", lastSeq+1, oldestFresh-1)
 	}
 
-	rows := make([]state.Row, 0, len(fresh)) // chronological
-	for i := len(fresh) - 1; i >= 0; i-- {
-		e := fresh[i]
+	rows := make([]state.Row, 0, n) // chronological
+	for i := n - 1; i >= 0; i-- {
+		e := entries[i]
 		r := state.Row{Entry: e.Entry}
 		if p.enricher != nil {
 			if ip := hostOnly(e.Src); ip != "" {

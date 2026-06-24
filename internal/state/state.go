@@ -55,7 +55,7 @@ type State struct {
 	// fetched entry with seq <= this.
 	lastSeq uint64
 
-	pollOverflow uint64
+	pollGaps     uint64
 	lastPollUnix int64
 
 	global     GlobalStats
@@ -110,7 +110,7 @@ func (s *State) Ingest(rows []Row, newestSeq uint64, gap bool) {
 		s.lastSeq = newestSeq
 	}
 	if gap {
-		s.pollOverflow++
+		s.pollGaps++
 	}
 	s.lastPollUnix = time.Now().Unix()
 }
