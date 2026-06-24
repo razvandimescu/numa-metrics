@@ -3,6 +3,7 @@
 package serve
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -18,7 +19,9 @@ func New(st *state.State, session string) http.Handler {
 
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
-		st.WriteMetrics(w)
+		bw := bufio.NewWriter(w)
+		st.WriteMetrics(bw)
+		bw.Flush()
 	})
 
 	mux.HandleFunc("/drain", func(w http.ResponseWriter, r *http.Request) {
@@ -31,12 +34,14 @@ func New(st *state.State, session string) http.Handler {
 		}
 		w.Header().Set("X-Numa-Metrics-Session", session)
 		w.Header().Set("Content-Type", "application/x-ndjson")
-		enc := json.NewEncoder(w)
+		bw := bufio.NewWriter(w)
+		enc := json.NewEncoder(bw)
 		for _, row := range st.RowsAfter(after, max) {
 			if err := enc.Encode(row); err != nil {
 				return
 			}
 		}
+		bw.Flush()
 	})
 
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {

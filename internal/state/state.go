@@ -29,11 +29,6 @@ type Row struct {
 	Name string `json:"name,omitempty"`
 }
 
-// Info is the per-client device metadata surfaced as a Prometheus _info metric.
-type Info struct {
-	Name string
-}
-
 type ckey struct {
 	client string
 	path   string
@@ -43,10 +38,9 @@ type State struct {
 	mu       sync.Mutex
 	counters map[ckey]uint64
 	lastSeen map[string]float64
-	info     map[string]Info
+	info     map[string]string // client IP -> device name
 
 	buf     []Row
-	cap     int
 	head    int
 	size    int
 	nextSeq uint64
@@ -70,9 +64,8 @@ func New(ringCap int) *State {
 	return &State{
 		counters: make(map[ckey]uint64),
 		lastSeen: make(map[string]float64),
-		info:     make(map[string]Info),
+		info:     make(map[string]string),
 		buf:      make([]Row, ringCap),
-		cap:      ringCap,
 	}
 }
 
@@ -97,13 +90,13 @@ func (s *State) Ingest(rows []Row, newestSeq uint64, gap bool) {
 		r.Seq = s.nextSeq
 		s.push(r)
 
-		ip := hostOnly(r.Src)
+		ip := HostIP(r.Src)
 		s.counters[ckey{ip, r.Path}]++
 		if r.TimestampEpoch > s.lastSeen[ip] {
 			s.lastSeen[ip] = r.TimestampEpoch
 		}
 		if r.Name != "" {
-			s.info[ip] = Info{Name: r.Name}
+			s.info[ip] = r.Name
 		}
 	}
 	if len(rows) > 0 {
@@ -127,9 +120,13 @@ func (s *State) MarkPoll() {
 func (s *State) RowsAfter(after uint64, max int) []Row {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	out := make([]Row, 0)
+	n := s.size
+	if max > 0 && max < n {
+		n = max
+	}
+	out := make([]Row, 0, n)
 	for i := 0; i < s.size; i++ {
-		r := s.buf[(s.head+i)%s.cap]
+		r := s.buf[(s.head+i)%len(s.buf)]
 		if r.Seq > after {
 			out = append(out, r)
 			if max > 0 && len(out) >= max {
@@ -141,17 +138,18 @@ func (s *State) RowsAfter(after uint64, max int) []Row {
 }
 
 func (s *State) push(r Row) {
-	idx := (s.head + s.size) % s.cap
-	if s.size < s.cap {
+	idx := (s.head + s.size) % len(s.buf)
+	if s.size < len(s.buf) {
 		s.buf[idx] = r
 		s.size++
 		return
 	}
 	s.buf[s.head] = r
-	s.head = (s.head + 1) % s.cap
+	s.head = (s.head + 1) % len(s.buf)
 }
 
-func hostOnly(src string) string {
+// HostIP strips the port from a numa src address ("ip:port" -> "ip").
+func HostIP(src string) string {
 	if h, _, err := net.SplitHostPort(src); err == nil {
 		return h
 	}
