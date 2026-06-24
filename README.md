@@ -11,16 +11,34 @@ aggregates per-client counters in RAM, and serves them for a remote collector to
 **scrape** (`/metrics`) and **drain** (`/drain`) over an SSH tunnel.
 
 ```
-pi-dns (this agent, RAM-only)            laptop (durable tier)         relay
-  ├ poll /query-log every 10s              ├ Prometheus/VictoriaMetrics  └ transit only
-  ├ enrich IP -> device (hosts-file / avahi)  ├ SQLite (domain history)        (reverse SSH;
-  ├ /metrics  (client × path counters)     └ when awake: scrape /metrics      stores nothing)
-  └ in-RAM drain ring (NDJSON cursor)  ◀──── + drain /drain over the tunnel
+pi-dns (this agent, RAM-only)              laptop (durable tier)
+  ├ poll /query-log every 10s                ├ Prometheus / VictoriaMetrics
+  ├ enrich IP -> device (hosts-file/avahi)   ├ SQLite (domain history)
+  ├ /metrics  (client × path counters)       └ when awake: scrape /metrics
+  └ in-RAM drain ring (NDJSON cursor)  ◀────    + drain /drain over an SSH tunnel
 ```
 
 The **agent** (what runs on the Pi) is stdlib-only and dependency-free. The
 optional **drain-consumer** (laptop-side) uses pure-Go `modernc.org/sqlite` — it
 is never linked into the Pi binary.
+
+## Pick your path
+
+The **agent** is always the producer; the **`deploy/` pod** (drain-consumer +
+Prometheus + Grafana) is always the durable/visualization tier. Two ways to run
+the producer:
+
+- **Real deployment — agent on the Pi (recommended).** A static ARMv6 binary
+  under systemd: enrichment (avahi + hosts-file) works, and the Pi's in-RAM ring
+  keeps filling while the laptop sleeps — drain on wake, no gaps. One-time `scp` +
+  systemd install, then bring up the pod on the laptop over the tunnel.
+- **Try it in ~5 min — agent as a host binary on the laptop.** Point `-numa-url`
+  at a local or tunneled numa and run the pod alongside it. Per-client *IPs* come
+  through; for device *names* use `-hosts-file` (avahi can't see a remote LAN).
+  Caveat: if the laptop sleeps, numa's 1000-entry log ring rolls over and that
+  window is lost — there's no Pi-side buffer in this model.
+
+→ Install: [on the Pi](#install-on-the-pi) · Visualize: [the observability pod](#the-observability-pod-deploy)
 
 ## Scope & data ethics
 
@@ -134,16 +152,24 @@ SELECT domain, count(*) q FROM queries WHERE client='192.168.1.21' GROUP BY doma
 SELECT client, domain, count(*) FROM queries WHERE path='BLOCKED' GROUP BY client, domain;
 ```
 
-## Visualize: Grafana stack (`deploy/`)
+## The observability pod (`deploy/`)
 
-`deploy/` is a self-contained compose stack: **drain-consumer** (→ SQLite),
-**Prometheus** (scrapes `/metrics`), and **Grafana** with both datasources
-auto-provisioned plus two dashboards.
+`deploy/` is a self-contained compose stack — **drain-consumer** (→ SQLite),
+**Prometheus** (scrapes `/metrics`), and **Grafana** with both datasources and two
+dashboards auto-provisioned. The **agent is not in the pod**: it's the producer
+(on the Pi, or a host binary for a quick local try) and the pod is the consumer
+tier that scrapes and drains it over the tunnel.
+
+Fastest path to a dashboard — agent as a host binary on the laptop:
 
 ```bash
-ssh -N -L 9353:127.0.0.1:9353 pi-dns-remote &   # tunnel the agent to the host
-cd deploy && docker compose up -d --build        # Grafana → http://localhost:3000
+make build && ./numa-metrics -numa-url=http://127.0.0.1:5380 &   # producer (host binary)
+ssh -N -L 9353:127.0.0.1:9353 pi-dns-remote &                    # only if numa is remote
+cd deploy && docker compose up -d --build                        # pod → http://localhost:3000
 ```
+
+For the Pi deployment the agent already runs under systemd — skip the binary, just
+start the tunnel and `docker compose up`.
 
 - **Numa — Overview & Per-Client** (Prometheus): cache-hit %, block %, queries/sec
   by path, top clients, memory.
@@ -182,17 +208,6 @@ curl -s "http://127.0.0.1:9353/drain?after=${CURSOR}" | sqlite-import ...
 | `-stats-interval` | `STATS_INTERVAL` | `15s` | `/stats` poll interval |
 | `-hosts-file` | `HOSTS_FILE` | _(none)_ | static `IP name` map for device names (works off-LAN, e.g. when the agent runs on the laptop pointing at a remote numa) |
 
-## Two deployment models
-
-- **Agent on the Pi (recommended for a real deployment):** enrichment (avahi + hosts-file)
-  works, and the Pi's in-RAM ring keeps filling while the laptop sleeps — drain on
-  wake, no gaps. Needs a one-time `scp` + systemd install.
-- **Agent on the laptop, pointed at a remote numa over the tunnel (quick/easy):**
-  set `-numa-url` to the tunneled numa API. Per-client *IPs* still come through;
-  for device *names* use `-hosts-file` (avahi can't see the remote LAN). Caveat:
-  if the laptop sleeps, numa's 1000-entry log ring rolls over and you lose that
-  window — there's no Pi-side buffer in this model.
-
 ## Notes & limits
 
 - **Gap detection.** The agent dedups by numa's `seq` (see [Why it's shaped this
@@ -206,6 +221,6 @@ curl -s "http://127.0.0.1:9353/drain?after=${CURSOR}" | sqlite-import ...
   depth, the oldest undrained rows are evicted — an accepted gap, not a bug. Size
   `-ring` for your expected offline window.
 - **Keep the data on loopback.** Per [Scope & data ethics](#scope--data-ethics),
-  endpoints stay on loopback and travel only through the tunnel; never park
-  domain-level rows on the public relay. `-enrich=false` collects counts without
-  device identities.
+  endpoints stay on loopback and travel only through the SSH tunnel; any host that
+  tunnel transits (e.g. a reverse-SSH relay fronting a NAT'd Pi) must forward bytes
+  only, never store rows. `-enrich=false` collects counts without device identities.
