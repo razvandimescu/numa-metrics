@@ -6,9 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A RAM-only agent that polls a local [numa](https://github.com/razvandimescu/numa)
 DNS resolver's REST API and re-exports it as per-client Prometheus metrics plus a
-drainable raw-row feed — **without modifying numa and without writing to the Pi's
-SD card.** It targets a hardened Pi Zero v1 (ARMv6) running numa, with a laptop as
-the durable/visualization tier reached over a reverse-SSH tunnel.
+drainable raw-row feed — **without writing to the Pi's SD card.** It targets a
+hardened Pi Zero v1 (ARMv6) running numa, with a laptop as the durable/visualization
+tier reached over a reverse-SSH tunnel. The one numa-side dependency is the
+per-entry `seq` field the poller dedups on (contributed upstream, numa#310).
 
 The README is unusually complete (architecture diagram, all flags, deployment
 models, PromQL examples) — read it before making non-trivial changes.
