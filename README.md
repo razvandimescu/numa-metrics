@@ -1,37 +1,79 @@
 # numa-metrics
 
-A tiny, RAM-only agent that turns a local [numa](https://github.com/razvandimescu/numa)
-resolver's query log into per-client DNS metadata — **without modifying numa and
-without writing to the Pi's SD card.**
+Per-client DNS observability for the [numa](https://github.com/razvandimescu/numa)
+resolver, designed to run on hardware too small to host a metrics stack: a
+RAM-only agent on the Pi, durable storage on a machine you trust.
 
-It runs on the resolver host (e.g. a hardened Pi Zero), polls numa's `/query-log`
-REST endpoint over loopback, aggregates per-client counters in memory, and serves
-them on loopback for a remote collector to **scrape** (`/metrics`) and **drain**
-(`/drain`) over an SSH tunnel.
+Running on a Pi Zero with a fragile SD card forces real discipline — no disk
+writes, a hard memory cap, strict metric cardinality — so observing the resolver
+can never destabilize it. The agent polls numa's `/query-log` over loopback,
+aggregates per-client counters in RAM, and serves them for a remote collector to
+**scrape** (`/metrics`) and **drain** (`/drain`) over an SSH tunnel.
 
 ```
-pi-dns (this agent, RAM-only)            laptop (durable tier)         relay
-  ├ poll /query-log every 10s              ├ Prometheus/VictoriaMetrics  └ transit only
-  ├ enrich IP -> device (hosts-file / avahi)  ├ SQLite (domain history)        (reverse SSH;
-  ├ /metrics  (client × path counters)     └ when awake: scrape /metrics      stores nothing)
-  └ in-RAM drain ring (NDJSON cursor)  ◀──── + drain /drain over the tunnel
+pi-dns (this agent, RAM-only)              laptop (durable tier)
+  ├ poll /query-log every 10s                ├ Prometheus / VictoriaMetrics
+  ├ enrich IP -> device (hosts-file/avahi)   ├ SQLite (domain history)
+  ├ /metrics  (client × path counters)       └ when awake: scrape /metrics
+  └ in-RAM drain ring (NDJSON cursor)  ◀────    + drain /drain over an SSH tunnel
 ```
 
 The **agent** (what runs on the Pi) is stdlib-only and dependency-free. The
 optional **drain-consumer** (laptop-side) uses pure-Go `modernc.org/sqlite` — it
 is never linked into the Pi binary.
 
+## Pick your path
+
+The **agent** is always the producer; the **`deploy/` pod** (drain-consumer +
+Prometheus + Grafana) is always the durable/visualization tier. Two ways to run
+the producer:
+
+- **Real deployment — agent on the Pi (recommended).** A static ARMv6 binary
+  under systemd: enrichment (avahi + hosts-file) works, and the Pi's in-RAM ring
+  keeps filling while the laptop sleeps — drain on wake, no gaps. One-time `scp` +
+  systemd install, then bring up the pod on the laptop over the tunnel.
+- **Try it in ~5 min — agent as a host binary on the laptop.** Point `-numa-url`
+  at a local or tunneled numa and run the pod alongside it. Per-client *IPs* come
+  through; for device *names* use `-hosts-file` (avahi can't see a remote LAN).
+  Caveat: if the laptop sleeps, numa's 1000-entry log ring rolls over and that
+  window is lost — there's no Pi-side buffer in this model.
+
+→ Install: [on the Pi](#install-on-the-pi) · Visualize: [the observability pod](#the-observability-pod-deploy)
+
+## Scope & data ethics
+
+**What this is.** A home-lab tool to understand *your own* network's DNS
+behavior — which devices are noisy, what is failing to resolve, the broad shape
+of traffic.
+
+**What it is not.** Per-client DNS metadata is among the most revealing data a
+network produces. This is not built for, and should not be pointed at, networks
+whose users have not consented to being measured. The design enforces that
+posture: endpoints bind to loopback only, device identities are off by default
+(`-enrich=false`), and domain-level detail is deliberately kept out of always-on
+metrics — it lives only in a drained store you control.
+
+*This repository is private precisely because the design is dual-use; I would
+rather discuss the boundaries than publish them unframed.*
+
 ## Why it's shaped this way
 
-- **No numa code changes.** numa's `/query-log` + `/stats` are the only sources.
-- **No SD writes.** All state is in-process RAM; the systemd unit grants no
-  writable paths. A reboot/power-loss drops the undrained buffer — acceptable for
-  metadata, and the laptop holds the durable archive.
-- **Memory-capped** (`MemoryMax` + `OOMPolicy=stop` in the unit) so it can never
-  trigger the SD-swap "swap-of-death" — a runaway is killed cleanly, numa untouched.
+- **A clean primitive, not a polling hack.** numa's `/query-log` returns
+  newest-first with no `since` filter; an early version inferred new queries by
+  diffing snapshots against a fingerprint watermark — brittle and racy under
+  bursts. The durable fix was upstream: a monotonic `seq` field contributed into
+  numa itself ([numa#310](https://github.com/razvandimescu/numa/pull/310)), so the
+  agent reads an exact, gap-free cursor. The integration surface is one
+  well-defined field, not a workaround.
+- **Ephemeral by design.** All state is in-process RAM; the systemd unit grants no
+  writable paths, so the agent never touches the SD card. Losing the undrained
+  buffer on reboot is an accepted cost — the laptop holds the durable archive.
+- **Cannot destabilize the resolver it watches.** A hard memory cap (`MemoryMax` +
+  `OOMPolicy=stop`) means a runaway agent is killed cleanly rather than dragging
+  numa down with it (no SD-swap "swap-of-death").
 - **Cardinality discipline.** Metrics are labeled `client` + `path` only; domains
   are *never* metric labels (that would explode cardinality). Per-domain detail
-  lives in the raw rows you drain into SQLite on the laptop.
+  lives in the rows you drain into SQLite on the laptop.
 
 ## Build
 
@@ -110,16 +152,24 @@ SELECT domain, count(*) q FROM queries WHERE client='192.168.1.21' GROUP BY doma
 SELECT client, domain, count(*) FROM queries WHERE path='BLOCKED' GROUP BY client, domain;
 ```
 
-## Visualize: Grafana stack (`deploy/`)
+## The observability pod (`deploy/`)
 
-`deploy/` is a self-contained compose stack: **drain-consumer** (→ SQLite),
-**Prometheus** (scrapes `/metrics`), and **Grafana** with both datasources
-auto-provisioned plus two dashboards.
+`deploy/` is a self-contained compose stack — **drain-consumer** (→ SQLite),
+**Prometheus** (scrapes `/metrics`), and **Grafana** with both datasources and two
+dashboards auto-provisioned. The **agent is not in the pod**: it's the producer
+(on the Pi, or a host binary for a quick local try) and the pod is the consumer
+tier that scrapes and drains it over the tunnel.
+
+Fastest path to a dashboard — agent as a host binary on the laptop:
 
 ```bash
-ssh -N -L 9353:127.0.0.1:9353 pi-dns-remote &   # tunnel the agent to the host
-cd deploy && docker compose up -d --build        # Grafana → http://localhost:3000
+make build && ./numa-metrics -numa-url=http://127.0.0.1:5380 &   # producer (host binary)
+ssh -N -L 9353:127.0.0.1:9353 pi-dns-remote &                    # only if numa is remote
+cd deploy && docker compose up -d --build                        # pod → http://localhost:3000
 ```
+
+For the Pi deployment the agent already runs under systemd — skip the binary, just
+start the tunnel and `docker compose up`.
 
 - **Numa — Overview & Per-Client** (Prometheus): cache-hit %, block %, queries/sec
   by path, top clients, memory.
@@ -158,30 +208,19 @@ curl -s "http://127.0.0.1:9353/drain?after=${CURSOR}" | sqlite-import ...
 | `-stats-interval` | `STATS_INTERVAL` | `15s` | `/stats` poll interval |
 | `-hosts-file` | `HOSTS_FILE` | _(none)_ | static `IP name` map for device names (works off-LAN, e.g. when the agent runs on the laptop pointing at a remote numa) |
 
-## Two deployment models
-
-- **Agent on the Pi (recommended for a real deployment):** enrichment (avahi + hosts-file)
-  works, and the Pi's in-RAM ring keeps filling while the laptop sleeps — drain on
-  wake, no gaps. Needs a one-time `scp` + systemd install.
-- **Agent on the laptop, pointed at a remote numa over the tunnel (quick/easy):**
-  set `-numa-url` to the tunneled numa API. Per-client *IPs* still come through;
-  for device *names* use `-hosts-file` (avahi can't see the remote LAN). Caveat:
-  if the laptop sleeps, numa's 1000-entry log ring rolls over and you lose that
-  window — there's no Pi-side buffer in this model.
-
 ## Notes & limits
 
-- numa returns `/query-log` newest-first and stamps each entry with a monotonic
-  `seq`, so the agent over-fetches the newest `limit` and keeps only entries with
-  `seq` above its watermark — exact dedup, no fingerprinting. If a burst between
-  polls evicts entries from numa's ring before the agent fetches them, the agent
-  detects the seq gap, logs `gap — missed numa seqs …`, and bumps
-  `numa_metrics_poll_gap_total`; raise `-limit` or lower `-interval` to avoid
-  it. A numa restart (seq resets) is detected from the backwards jump and the
-  window is re-ingested. (Requires numa with per-entry `seq`, numa#310.)
-- The drain ring is bounded; if the laptop sleeps longer than the ring's depth,
-  the oldest undrained rows are evicted (a gap, by design). Size `-ring` for your
-  expected offline window.
-- **Privacy:** per-client query data is sensitive. Keep endpoints on loopback,
-  carry them only through the tunnel, and never park the domain-level rows on the
-  public relay. Set `-enrich=false` to collect counts without device identities.
+- **Gap detection.** The agent dedups by numa's `seq` (see [Why it's shaped this
+  way](#why-its-shaped-this-way)) and notices when a burst evicts entries from
+  numa's 1000-entry ring before it polls: it logs `gap — missed numa seqs …` and
+  bumps `numa_metrics_poll_gap_total`. Raise `-limit` or lower `-interval` to avoid
+  it. A numa restart (seq resets) is caught from the backwards jump and the window
+  re-ingested. Requires numa with per-entry `seq`
+  ([numa#310](https://github.com/razvandimescu/numa/pull/310)).
+- **Bounded drain ring, by design.** If the laptop sleeps longer than the ring's
+  depth, the oldest undrained rows are evicted — an accepted gap, not a bug. Size
+  `-ring` for your expected offline window.
+- **Keep the data on loopback.** Per [Scope & data ethics](#scope--data-ethics),
+  endpoints stay on loopback and travel only through the SSH tunnel; any host that
+  tunnel transits (e.g. a reverse-SSH relay fronting a NAT'd Pi) must forward bytes
+  only, never store rows. `-enrich=false` collects counts without device identities.
