@@ -9,7 +9,7 @@ func row(seq float64, src, domain, path string) Row {
 func TestRingEvictsOldestKeepsSeqOrder(t *testing.T) {
 	s := New(3)
 	for i := 0; i < 5; i++ {
-		s.Ingest([]Row{row(float64(i), "192.168.1.21:5", "x.com", "FORWARD")}, "fp", float64(i), false)
+		s.Ingest([]Row{row(float64(i), "192.168.1.21:5", "x.com", "FORWARD")}, uint64(i+1), false)
 	}
 	got := s.RowsAfter(0, 0)
 	if len(got) != 3 {
@@ -23,7 +23,7 @@ func TestRingEvictsOldestKeepsSeqOrder(t *testing.T) {
 func TestRowsAfterCursor(t *testing.T) {
 	s := New(10)
 	for i := 0; i < 4; i++ {
-		s.Ingest([]Row{row(float64(i), "10.0.0.1:1", "y.com", "CACHED")}, "fp", float64(i), false)
+		s.Ingest([]Row{row(float64(i), "10.0.0.1:1", "y.com", "CACHED")}, uint64(i+1), false)
 	}
 	got := s.RowsAfter(2, 0) // seqs are 1..4; want > 2
 	if len(got) != 2 || got[0].Seq != 3 {
@@ -37,7 +37,7 @@ func TestCountersAndBlocked(t *testing.T) {
 		row(1, "192.168.1.21:1", "reddit.com", "BLOCKED"),
 		row(2, "192.168.1.21:1", "good.com", "FORWARD"),
 		row(3, "192.168.1.21:1", "ads.com", "BLOCKED"),
-	}, "fp", 3, false)
+	}, 3, false)
 
 	if s.counters[ckey{"192.168.1.21", "BLOCKED"}] != 2 {
 		t.Fatalf("want 2 blocked for .21, got %d", s.counters[ckey{"192.168.1.21", "BLOCKED"}])

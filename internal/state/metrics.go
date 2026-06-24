@@ -29,7 +29,7 @@ func (s *State) WriteMetrics(w io.Writer) {
 	for k, v := range s.info {
 		info[k] = v
 	}
-	overflow := s.pollOverflow
+	gaps := s.pollGaps
 	ringSize := s.size
 	lastPoll := s.lastPollUnix
 	global := s.global
@@ -67,9 +67,9 @@ func (s *State) WriteMetrics(w io.Writer) {
 		fmt.Fprintf(w, "numa_client_info{client=%q,name=%q} 1\n", esc(ip), esc(info[ip].Name))
 	}
 
-	fmt.Fprintln(w, "# HELP numa_metrics_poll_overflow_total Polls that returned a full page (possible missed entries).")
-	fmt.Fprintln(w, "# TYPE numa_metrics_poll_overflow_total counter")
-	fmt.Fprintf(w, "numa_metrics_poll_overflow_total %d\n", overflow)
+	fmt.Fprintln(w, "# HELP numa_metrics_poll_gap_total Polls that detected a seq gap (entries rolled off numa's ring before we fetched them).")
+	fmt.Fprintln(w, "# TYPE numa_metrics_poll_gap_total counter")
+	fmt.Fprintf(w, "numa_metrics_poll_gap_total %d\n", gaps)
 
 	fmt.Fprintln(w, "# HELP numa_metrics_ring_rows Current rows buffered in the drain ring.")
 	fmt.Fprintln(w, "# TYPE numa_metrics_ring_rows gauge")

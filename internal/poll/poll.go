@@ -1,6 +1,6 @@
 // Package poll fetches numa's newest query-log entries on an interval and folds
-// the unseen ones into state. numa has no `since` filter, so we over-fetch the
-// newest `limit` and dedup against a watermark.
+// the unseen ones into state. numa returns newest-first and stamps each entry
+// with a monotonic seq, so we keep entries with seq above our watermark.
 package poll
 
 import (
@@ -11,12 +11,18 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/razvandimescu/numa-metrics/internal/enrich"
 	"github.com/razvandimescu/numa-metrics/internal/state"
 )
+
+// logEntry is a query-log row as numa returns it: the entry fields plus the
+// monotonic seq numa stamps at insert (used only here, for dedup).
+type logEntry struct {
+	state.Entry
+	Seq uint64 `json:"seq"`
+}
 
 type Poller struct {
 	baseURL  string
@@ -53,29 +59,50 @@ func (p *Poller) Run(ctx context.Context) {
 }
 
 func (p *Poller) once(ctx context.Context) {
-	entries, err := p.fetch(ctx)
+	entries, err := p.fetch(ctx) // newest-first, each carrying numa's seq
 	if err != nil {
 		log.Printf("poll: %v", err)
 		return
 	}
-
-	lastFp, lastEpoch := p.state.Watermark()
-	fresh := make([]state.Entry, 0, len(entries)) // newest-first
-	for _, e := range entries {
-		if fingerprint(e) == lastFp || e.TimestampEpoch < lastEpoch {
-			break
-		}
-		fresh = append(fresh, e)
-	}
-	if len(fresh) == 0 {
+	if len(entries) == 0 {
 		p.state.MarkPoll()
 		return
 	}
 
-	rows := make([]state.Row, 0, len(fresh)) // chronological
-	for i := len(fresh) - 1; i >= 0; i-- {
-		e := fresh[i]
-		r := state.Row{Entry: e}
+	lastSeq := p.state.LastSeq()
+	newest := entries[0].Seq
+
+	// numa restart: its seq counter resets to 0, so the newest seq drops below
+	// our watermark. Re-ingest the whole window from scratch — numa's own
+	// counters reset too, so this is the correct fresh start.
+	if newest < lastSeq {
+		log.Printf("poll: numa seq went backwards (%d < %d) — numa restarted, re-ingesting", newest, lastSeq)
+		lastSeq = 0
+	}
+
+	// Entries are newest-first and contiguous, so the fresh ones are the prefix
+	// with seq > lastSeq; count them, then walk that prefix oldest-first.
+	n := 0
+	for n < len(entries) && entries[n].Seq > lastSeq {
+		n++
+	}
+	if n == 0 {
+		p.state.MarkPoll()
+		return
+	}
+
+	// Gap: the oldest fresh entry is more than one seq past our watermark, so
+	// entries in between rolled off numa's ring before we fetched them.
+	oldestFresh := entries[n-1].Seq
+	gap := lastSeq > 0 && oldestFresh > lastSeq+1
+	if gap {
+		log.Printf("poll: gap — missed numa seqs %d..%d (raise -limit or lower -interval)", lastSeq+1, oldestFresh-1)
+	}
+
+	rows := make([]state.Row, 0, n) // chronological
+	for i := n - 1; i >= 0; i-- {
+		e := entries[i]
+		r := state.Row{Entry: e.Entry}
 		if p.enricher != nil {
 			if ip := hostOnly(e.Src); ip != "" {
 				r.Name = p.enricher.Lookup(ip)
@@ -83,16 +110,10 @@ func (p *Poller) once(ctx context.Context) {
 		}
 		rows = append(rows, r)
 	}
-
-	newest := fresh[0]
-	hitLimit := lastFp != "" && len(entries) == p.limit && len(fresh) == len(entries)
-	if hitLimit {
-		log.Printf("poll: page full (%d) and all new — raise -limit or lower -interval to avoid gaps", p.limit)
-	}
-	p.state.Ingest(rows, fingerprint(newest), newest.TimestampEpoch, hitLimit)
+	p.state.Ingest(rows, newest, gap)
 }
 
-func (p *Poller) fetch(ctx context.Context) ([]state.Entry, error) {
+func (p *Poller) fetch(ctx context.Context) ([]logEntry, error) {
 	u := fmt.Sprintf("%s/query-log?limit=%d", p.baseURL, p.limit)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
@@ -107,16 +128,11 @@ func (p *Poller) fetch(ctx context.Context) ([]state.Entry, error) {
 		io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
 		return nil, fmt.Errorf("status %d", resp.StatusCode)
 	}
-	var out []state.Entry
+	var out []logEntry
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return nil, err
 	}
 	return out, nil
-}
-
-func fingerprint(e state.Entry) string {
-	return e.Src + "|" + e.Domain + "|" + e.QueryType + "|" +
-		strconv.FormatFloat(e.TimestampEpoch, 'f', 6, 64)
 }
 
 func hostOnly(src string) string {

@@ -51,11 +51,11 @@ type State struct {
 	size    int
 	nextSeq uint64
 
-	// Watermark: fingerprint + epoch of the newest entry ingested last poll.
-	lastFp    string
-	lastEpoch float64
+	// Watermark: highest numa seq ingested last poll. The poller skips any
+	// fetched entry with seq <= this.
+	lastSeq uint64
 
-	pollOverflow uint64
+	pollGaps     uint64
 	lastPollUnix int64
 
 	global     GlobalStats
@@ -76,18 +76,19 @@ func New(ringCap int) *State {
 	}
 }
 
-// Watermark returns the newest fingerprint+epoch from the previous poll so the
-// poller can stop walking the newest-first list once it reaches known data.
-func (s *State) Watermark() (fp string, epoch float64) {
+// LastSeq returns the highest numa seq ingested so far, so the poller can skip
+// entries it already folded in.
+func (s *State) LastSeq() uint64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.lastFp, s.lastEpoch
+	return s.lastSeq
 }
 
 // Ingest folds a chronological (oldest-first) batch of new rows into the
-// aggregates and the ring, assigning sequence numbers and advancing the
-// watermark to newestFp/newestEpoch.
-func (s *State) Ingest(rows []Row, newestFp string, newestEpoch float64, hitLimit bool) {
+// aggregates and the ring, assigning drain sequence numbers and advancing the
+// numa-seq watermark to newestSeq. gap marks a poll that missed entries (they
+// rolled off numa's ring before we fetched).
+func (s *State) Ingest(rows []Row, newestSeq uint64, gap bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i := range rows {
@@ -106,11 +107,10 @@ func (s *State) Ingest(rows []Row, newestFp string, newestEpoch float64, hitLimi
 		}
 	}
 	if len(rows) > 0 {
-		s.lastFp = newestFp
-		s.lastEpoch = newestEpoch
+		s.lastSeq = newestSeq
 	}
-	if hitLimit {
-		s.pollOverflow++
+	if gap {
+		s.pollGaps++
 	}
 	s.lastPollUnix = time.Now().Unix()
 }
