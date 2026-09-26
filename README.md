@@ -197,6 +197,7 @@ curl -s "http://127.0.0.1:9353/drain?after=${CURSOR}" | sqlite-import ...
 | Flag | Env | Default | |
 |------|-----|---------|--|
 | `-numa-url` | `NUMA_URL` | `http://127.0.0.1:5380` | numa REST base URL |
+| — | `NUMA_API_TOKEN` | — | numa API token; needed only when `NUMA_URL` is not loopback |
 | `-listen` | `LISTEN` | `127.0.0.1:9353` | loopback bind |
 | `-interval` | `INTERVAL` | `10s` | poll interval |
 | `-limit` | `LIMIT` | `1000` | entries fetched per poll |

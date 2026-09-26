@@ -31,7 +31,7 @@ func serveWindow(window *[]apiEntry, st *state.State) (*httptest.Server, *Poller
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(*window)
 	}))
-	return srv, New(srv.URL, 1000, time.Hour, st, nil)
+	return srv, New(srv.URL, "", 1000, time.Hour, st, nil)
 }
 
 // numa returns entries newest-first; each poll the poller must ingest only
@@ -113,5 +113,39 @@ func TestSeqGapDetected(t *testing.T) {
 	st.WriteMetrics(&sb)
 	if !strings.Contains(sb.String(), "numa_metrics_poll_gap_total 1") {
 		t.Fatalf("gap not counted:\n%s", sb.String())
+	}
+}
+
+// numa rejects non-loopback peers without the token; both pollers share this client.
+func TestTokenSentAsBearer(t *testing.T) {
+	var got string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Get("Authorization")
+		w.Write([]byte("[]"))
+	}))
+	defer srv.Close()
+
+	New(srv.URL, "s3cret", 1000, time.Hour, state.New(10), nil).once(context.Background())
+	if got != "Bearer s3cret" {
+		t.Fatalf("Authorization = %q, want %q", got, "Bearer s3cret")
+	}
+}
+
+// A redirect must not carry the token to another host.
+func TestTokenNotSentAcrossRedirect(t *testing.T) {
+	var leaked string
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		leaked = r.Header.Get("Authorization")
+		w.Write([]byte("[]"))
+	}))
+	defer other.Close()
+	numa := httptest.NewServer(http.RedirectHandler(other.URL, http.StatusFound))
+	defer numa.Close()
+
+	if _, err := New(numa.URL, "s3cret", 1000, time.Hour, state.New(10), nil).fetch(context.Background()); err == nil {
+		t.Fatal("redirect was followed; want an error")
+	}
+	if leaked != "" {
+		t.Fatalf("redirect target received Authorization = %q", leaked)
 	}
 }
