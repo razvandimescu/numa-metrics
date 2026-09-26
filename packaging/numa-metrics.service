@@ -7,6 +7,9 @@ Wants=network-online.target
 ExecStart=/usr/local/bin/numa-metrics
 Environment=NUMA_URL=http://127.0.0.1:5380
 Environment=LISTEN=127.0.0.1:9353
+# Only if numa's API is bound off loopback: a root-owned 0600 file holding
+# NUMA_API_TOKEN=<numa's api_token>. The leading '-' makes a missing file non-fatal.
+EnvironmentFile=-/etc/numa-metrics/token.env
 # Optional: router DHCP-lease names. Missing file is non-fatal (warns, continues).
 Environment=HOSTS_FILE=/etc/numa-metrics/devices.txt
 

@@ -32,14 +32,14 @@ type Poller struct {
 	client   *http.Client
 }
 
-func New(baseURL string, limit int, interval time.Duration, st *state.State, en *enrich.Enricher) *Poller {
+func New(baseURL, token string, limit int, interval time.Duration, st *state.State, en *enrich.Enricher) *Poller {
 	return &Poller{
 		baseURL:  baseURL,
 		limit:    limit,
 		interval: interval,
 		state:    st,
 		enricher: en,
-		client:   &http.Client{Timeout: 5 * time.Second},
+		client:   newClient(token),
 	}
 }
 
@@ -114,6 +114,23 @@ func (p *Poller) once(ctx context.Context) {
 
 func (p *Poller) fetch(ctx context.Context) ([]logEntry, error) {
 	return getJSON[[]logEntry](ctx, p.client, fmt.Sprintf("%s/query-log?limit=%d", p.baseURL, p.limit))
+}
+
+// bearer presents numa's API token, which numa requires from every non-loopback peer.
+type bearer string
+
+func (b bearer) RoundTrip(r *http.Request) (*http.Response, error) {
+	r = r.Clone(r.Context())
+	r.Header.Set("Authorization", "Bearer "+string(b))
+	return http.DefaultTransport.RoundTrip(r)
+}
+
+func newClient(token string) *http.Client {
+	c := &http.Client{Timeout: 5 * time.Second}
+	if token != "" {
+		c.Transport = bearer(token)
+	}
+	return c
 }
 
 // getJSON does a context-scoped GET and decodes a single JSON value from the body.

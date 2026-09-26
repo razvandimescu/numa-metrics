@@ -18,12 +18,12 @@ type StatsPoller struct {
 	client   *http.Client
 }
 
-func NewStats(baseURL string, interval time.Duration, st *state.State) *StatsPoller {
+func NewStats(baseURL, token string, interval time.Duration, st *state.State) *StatsPoller {
 	return &StatsPoller{
 		url:      baseURL + "/stats",
 		interval: interval,
 		state:    st,
-		client:   &http.Client{Timeout: 5 * time.Second},
+		client:   newClient(token),
 	}
 }
 

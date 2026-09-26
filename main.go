@@ -33,6 +33,7 @@ func main() {
 	statsInterval := flag.Duration("stats-interval", envDur("STATS_INTERVAL", 15*time.Second), "/stats poll interval")
 	hostsFile := flag.String("hosts-file", env("HOSTS_FILE", ""), "static 'IP name' map for device names (works off-LAN)")
 	flag.Parse()
+	token := os.Getenv("NUMA_API_TOKEN") // env only: flags are visible in ps
 
 	st := state.New(*ringCap)
 	var en *enrich.Enricher
@@ -48,14 +49,14 @@ func main() {
 		}
 		en = enrich.New(*enrichTTL, *avahi, hosts)
 	}
-	p := poll.New(*numaURL, *limit, *interval, st, en)
+	p := poll.New(*numaURL, token, *limit, *interval, st, en)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	go p.Run(ctx)
 	if *doStats {
-		go poll.NewStats(*numaURL, *statsInterval, st).Run(ctx)
+		go poll.NewStats(*numaURL, token, *statsInterval, st).Run(ctx)
 	}
 
 	session := strconv.FormatInt(time.Now().UnixNano(), 36)
