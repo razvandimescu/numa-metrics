@@ -125,8 +125,15 @@ func (b bearer) RoundTrip(r *http.Request) (*http.Response, error) {
 	return http.DefaultTransport.RoundTrip(r)
 }
 
+// newClient never follows redirects: bearer would re-attach the token to any
+// host numa's response points at, bypassing net/http's cross-host stripping.
 func newClient(token string) *http.Client {
-	c := &http.Client{Timeout: 5 * time.Second}
+	c := &http.Client{
+		Timeout: 5 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 	if token != "" {
 		c.Transport = bearer(token)
 	}

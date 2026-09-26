@@ -130,3 +130,22 @@ func TestTokenSentAsBearer(t *testing.T) {
 		t.Fatalf("Authorization = %q, want %q", got, "Bearer s3cret")
 	}
 }
+
+// A redirect must not carry the token to another host.
+func TestTokenNotSentAcrossRedirect(t *testing.T) {
+	var leaked string
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		leaked = r.Header.Get("Authorization")
+		w.Write([]byte("[]"))
+	}))
+	defer other.Close()
+	numa := httptest.NewServer(http.RedirectHandler(other.URL, http.StatusFound))
+	defer numa.Close()
+
+	if _, err := New(numa.URL, "s3cret", 1000, time.Hour, state.New(10), nil).fetch(context.Background()); err == nil {
+		t.Fatal("redirect was followed; want an error")
+	}
+	if leaked != "" {
+		t.Fatalf("redirect target received Authorization = %q", leaked)
+	}
+}
